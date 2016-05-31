@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 use Net::Ping;
+use Net::Ping::External 'ping';
 #
 $snmpsocketnum=10161;
 #
@@ -8,7 +9,7 @@ $snmpsocketnum=10161;
 if (@ARGV == 1) {
     $hostlist = $ARGV[0];
 } else {
- die "Usage : $myName hostnamefile \n";
+ die "Usage : $myName IPaddressListFile \n";
 }
 
 open (FILE,$hostlist) || die " Can not Open file $hostlist \n" ;
@@ -20,7 +21,7 @@ while (<FILE>){
 # Write File Open
 	open(OUT,">> $item[3].txt");
 
-#	printf ("%s,%s",$item[0],$item[1]);
+	printf ("%s,%s",$item[0],$item[1]);
 	print OUT "--------------------------------------------------------\n";
 	print OUT "$item[1]\n";
 
