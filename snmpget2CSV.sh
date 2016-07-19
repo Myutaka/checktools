@@ -3,48 +3,48 @@
 # Auther: Miyata
 # Date: 20100525
 # Mod: 20160716
-# Usage:  sanmpwalk2CSV.sh [コンフィグファイル名]
-#         引数が無い場合は、シェルと同一ディレクトリにあるsnmpwalk2CSV.cfg
+# Usage:  sanmpget2CSV.sh [コンフィグファイル名]
+#         引数が無い場合は、シェルと同一ディレクトリにあるsnmpget2CSV.cfg
 #         ファイルを読み込む
 #         -c オプションでコンフィグファイルを指定可能
 # DESCRIPTION:
-#   LocalホストのSNMPエージェントの任意のTable形式の1つのObjectに対し、
-#   snmpwalkを実行し、カンマ区切りの1行に出力する。
+#   LocalホストのSNMPエージェントの任意のScolar形式の1つのObjectに対し、
+#   snmpgetを実行し、カンマ区切りの1行に出力する。
 # 制約:
-#   snmpwalk結果に"改行コード"や、"半角スペース"が含まれていないこと。
+#   snmpget結果に"改行コード"や、"半角スペース"が含まれていないこと。
 #   取得対象のObjectは、net-snmpでパーズできる環境であること。
-#     net-snmpの仕様により、RFC1213以外のObjectの場合、snmpwalk対象Object名は、MIB名::Object名
+#     net-snmpの仕様により、RFC1213以外のObjectの場合、snmpget対象Object名は、MIB名::Object名
 #     と記述する。
-#   ObjectのIndexは、1段階であること(2段階以上のIndexは、Index処理が別に必要になる。
 #
-# Export CSV Format "ObjectName,[Index],[Index],...."
-#                   "UNIXTIME,[Value],[Value],...."
+# Export CSV Format "ObjectName,ObjectName"
+#                   "UNIXTIME,[Value]"
 #
 ### ConfigFile に設定してある変数
 # PING="/bin/ping"
 # PINGOPTIONS="-c 1 -w 1 " # for Linux
-# 
-# SNMPWALK="/usr/bin/snmpwalk"
-# SNMPVERSION="1"
-# SNMPTIMEOUT="0.5"
-# SNMPCOMMUNITY="public"
-# SNMPMIBDIR="/opt/netcool/ssm/mibs/"
-# WALKIDXTITLE="ifDescr"
-# WALKIDX="ifDescr"
-# WALKOID="ifInOctets"
 #
-## DefValue
+# SNMPGET="/usr/bin/snmpget"           # net-snmp のsnmpgetコマンドのパスを記述
+# SNMPVERSION="1"                      # 指定可能なオプションは 1 or 2c 
+# SNMPTIMEOUT="0.5"                    # snmpgetコマンドのタイムアウト
+# SNMPCOMMUNITY="public"               # snmpgetコマンドのコミュニティ名
+# SNMPMIBDIR="/opt/netcool/ssm/mibs/"  # snmpcmd コマンドの -M オプションで指定する MIBディレクトリ
+# GETTITLE="ipInReceives"              # CSV出力ファイルのインデックスタイトル名
+# GETIDX="ipInReceives"                # CSV出力ファイルのインデックス名
+# GETOID="ipInReceives.0"              # CSV出力ファイルの取得MIB名(Scolar形式のみ)
+#
+## 
 # ADDRESS=localhost
-# SNMP_PORT=161
-# CSVFILE="/tmp/snmpwalk2CSV.csv"
-# ERRLOG="/tmp/snmpwalk2CSV.log"
+# SNMP_PORT=10161
+# CSVFILE="/tmp/2snmpget2CSV.csv"
+# ERRLOG="/tmp/2snmpget2CSV.errlog"   # snmpget の エラーログ
+
 
 
 # シェル実行ディレクトリの取得
 SHELLDIR=$(cd $(dirname $0);pwd)
 
 # デフォルトコンフィグファイル名 の定義
-DEFConfFile="snmpwalk2CSV.cfg"
+DEFConfFile="snmpget2CSV.cfg"
 
 
 # 引数のチェック
@@ -109,33 +109,21 @@ fi
 #  -> 今回は不要
 
 #
-# SNMPwalk実行 Indexデータの取得と、出力処理
+# タイトル行の出力処理
 #   出力用CSVファイルが存在していなかった場合の処理
 #
 if [ $FileFLG == 0 ]; then
-    # 出力用CSVファイルが0バイトor存在しないため、Index情報を出力
-    # SNMPWALKINDEX=`$SNMPWALK -t $SNMPTIMEOUT -v $SNMPVERSION -c $SNMPCOMMUNITY -m all -M $SNMPMIBDIR -Ovq $ADDRESS:$SNMP_PORT $WALKIDX 2>/dev/null`
-    SNMPWALKINDEX=`$SNMPWALK -t $SNMPTIMEOUT -v $SNMPVERSION -c $SNMPCOMMUNITY -m all -M $SNMPMIBDIR -Ovq $ADDRESS:$SNMP_PORT $WALKIDX 2>>$ERRLOG `
-    if [ $? != 0 ]; then
-      SNMPStatus="NG"
-      DATE=`date +%Y/%m/%d-%H:%M:%S`
-      echo " $DATE [ERROR] SNMP Not Responce" >> $ERRLOG
-      exit 1
-#    else
-#      SNMPStatus="OK"
-    fi
-
     # CSVファイルにデータを出力
     SNMPIDXArr=()
-    SNMPIDXArr+=("$WALKIDXTITLE")
-    SNMPIDXArr+=($SNMPWALKINDEX)
+    SNMPIDXArr+=("$GETTITLE")
+    SNMPIDXArr+=("$GETIDX")
     SNMPIDXArrData=${SNMPIDXArr[@]}
     # 配列格納情報を出力し、デリミタを "半角スペース" から "カンマ" に置換して出力
     echo ${SNMPIDXArrData// /,} >> $CSVFILE
 fi
 
 #
-# SNMPwalk実行 値取得用snmpwalkデータの取得と出力処理
+# SNMPget実行 値取得用snmpgetデータの取得と出力処理
 #
 
 # 配列の最初のデータとしてUNIXTIMEフォーマットマットで実行時時間を挿入
@@ -144,9 +132,9 @@ fi
 SNMPDATAArr=()
 SNMPDATAArr+=(`date +%Y/%m/%d-%H:%M:%S`)
 
-# Table形式のObjectの値のみを格納  snmpwalkのオプションに -Ovq を指定
-#SNMPWALKDATA=`$SNMPWALK -t $SNMPTIMEOUT -v $SNMPVERSION -c $SNMPCOMMUNITY -m all -M $SNMPMIBDIR -Ovq $ADDRESS:$SNMP_PORT $WALKOID 2>/dev/null`
-SNMPWALKDATA=`$SNMPWALK -t $SNMPTIMEOUT -v $SNMPVERSION -c $SNMPCOMMUNITY -m all -M $SNMPMIBDIR -Ovq $ADDRESS:$SNMP_PORT $WALKOID 2>>$ERRLOG`
+# Table形式のObjectの値のみを格納  snmpgetのオプションに -Ovq を指定
+#SNMPGETDATA=`$SNMPGET -t $SNMPTIMEOUT -v $SNMPVERSION -c $SNMPCOMMUNITY -m all -M $SNMPMIBDIR -Ovq $ADDRESS:$SNMP_PORT $GETOID 2>/dev/null`
+SNMPGETDATA=`$SNMPGET -t $SNMPTIMEOUT -v $SNMPVERSION -c $SNMPCOMMUNITY -m all -M $SNMPMIBDIR -Ovq $ADDRESS:$SNMP_PORT $GETOID 2>>$ERRLOG`
 if [ $? != 0 ];
 then
     SNMPStatus="NG"
@@ -157,7 +145,7 @@ else
 
     # 配列に格納してあるデータのCSV形式への出力確認
     # 配列格納情報を出力し、デリミタを "半角スペース" から "カンマ" に置換して出力
-    SNMPDATAArr+=("$SNMPWALKDATA")
+    SNMPDATAArr+=("$SNMPGETDATA")
     SNMPDATAArrData=${SNMPDATAArr[@]}
     echo ${SNMPDATAArrData// /,} >> $CSVFILE
 fi
